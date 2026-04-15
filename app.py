@@ -1,8 +1,6 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import pandas as pd
-import os
-import base64
 
 # =========================
 # CONFIG
@@ -11,8 +9,9 @@ ELITE_THRESHOLD = 160000
 
 st.set_page_config(page_title="Awesomenauts Tracker", layout="wide")
 
+
 # =========================
-# FILE UPLOAD (CLOUD SAFE)
+# UPLOAD (SAFE)
 # =========================
 uploaded_file = st.file_uploader("Upload ApplicationPersistent.log", type=["log"])
 
@@ -79,13 +78,14 @@ def parse_log_from_string(log_data):
 
 
 # =========================
-# LOAD DATA
+# SAFE FILE LOADING (FIXED BUG)
 # =========================
+matches = []
+
 if uploaded_file is not None:
-    log_data = uploaded_file.read().decode("utf-8")
+    log_data = uploaded_file.getvalue().decode("utf-8", errors="ignore")
     matches = parse_log_from_string(log_data)
-else:
-    matches = []
+
 
 df = pd.DataFrame(matches)
 
@@ -125,7 +125,6 @@ def best_stats(df):
 
     df = df.copy()
     df["date_only"] = df["date"].dt.date
-
     grouped = df.groupby("date_only")
 
     best_day = None
@@ -160,16 +159,16 @@ with col2:
     st.markdown("""
     <div style="text-align:center;">
         <h1>🎮 Awesomenauts Tracker</h1>
-        <p>Upload your log file to view stats</p>
+        <p>Upload your ApplicationPersistent.log file</p>
     </div>
     """, unsafe_allow_html=True)
 
 
 # =========================
-# SAFETY CHECK
+# STOP IF NO FILE
 # =========================
-if df.empty:
-    st.warning("Upload your ApplicationPersistent.log file to view stats.")
+if uploaded_file is None:
+    st.info("Upload your log file to view stats.")
     st.stop()
 
 
@@ -178,9 +177,7 @@ if df.empty:
 # =========================
 first_match_date = df["date"].min().strftime("%d %b %Y")
 
-st.markdown(f"""
-## 📊 All-Time Stats - 📅 From {first_match_date}
-""")
+st.markdown(f"## 📊 All-Time Stats - 📅 From {first_match_date}")
 
 games = len(df)
 wins = int(df["won"].sum())
@@ -216,6 +213,7 @@ st.markdown("## 📊 Performance")
 today_df = df[df["date"].dt.date == today]
 yesterday_df = df[df["date"].dt.date == yesterday]
 
+
 def render(title, data, date_label):
     if data.empty:
         st.write(f"{title}: No data")
@@ -249,11 +247,6 @@ st.markdown("## 📜 Match History")
 
 display_df = df.copy()
 
-def result(row):
-    if row.get("won"):
-        return "🟢 WIN"
-    return "🔴 LOSS"
-
-display_df["Result"] = display_df.apply(result, axis=1)
+display_df["Result"] = display_df["won"].apply(lambda x: "🟢 WIN" if x else "🔴 LOSS")
 
 st.dataframe(display_df)
