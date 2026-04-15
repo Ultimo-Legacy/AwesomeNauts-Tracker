@@ -1,3 +1,5 @@
+uploaded_file = st.file_uploader("Upload ApplicationPersistent.log", type=["log"])
+
 import streamlit as st
 from datetime import datetime, timedelta
 import pandas as pd
@@ -156,7 +158,67 @@ def best_stats(df):
 # =========================
 # LOAD DATA
 # =========================
-matches = parse_log()
+if uploaded_file is not None:
+    log_data = uploaded_file.read().decode("utf-8")
+    matches = parse_log_from_string(log_data)
+else:
+    matches = []
+def parse_log_from_string(log_data):
+    matches = []
+    seen_scores = set()
+    current = None
+
+    lines = log_data.splitlines()
+
+    for line in lines:
+
+        if "Match start" in line:
+            current = {
+                "date": None,
+                "rating": None,
+                "mu": None,
+                "sigma": None,
+                "won": False
+            }
+
+            try:
+                date_str = line.split("\t")[0]
+                current["date"] = datetime.strptime(date_str, "%Y-%m-%d %a %H:%M:%S")
+            except:
+                current["date"] = None
+
+        if current is None:
+            continue
+
+        if "Own team won." in line:
+            current["won"] = True
+
+        if "Uploading new mean score" in line:
+            try:
+                current["mu"] = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "Uploading new stddev score" in line:
+            try:
+                current["sigma"] = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "Uploading new ranking score" in line:
+            try:
+                rating = int(line.strip().split()[-1])
+            except:
+                continue
+
+            if rating in seen_scores:
+                continue
+
+            seen_scores.add(rating)
+            current["rating"] = rating
+            matches.append(current.copy())
+
+    return matches
 df = pd.DataFrame(matches)
 
 if not df.empty:
