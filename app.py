@@ -11,7 +11,7 @@ st.set_page_config(page_title="Awesomenauts Tracker", layout="wide")
 
 
 # =========================
-# UPLOAD (SAFE)
+# FILE UPLOAD (FIXED SAFE)
 # =========================
 uploaded_file = st.file_uploader("Upload ApplicationPersistent.log", type=["log"])
 
@@ -78,14 +78,13 @@ def parse_log_from_string(log_data):
 
 
 # =========================
-# SAFE FILE LOADING (FIXED BUG)
+# SAFE DATA LOAD
 # =========================
 matches = []
 
 if uploaded_file is not None:
     log_data = uploaded_file.getvalue().decode("utf-8", errors="ignore")
     matches = parse_log_from_string(log_data)
-
 
 df = pd.DataFrame(matches)
 
@@ -151,7 +150,7 @@ def best_stats(df):
 
 
 # =========================
-# HEADER
+# HEADER (RESTORED STYLE)
 # =========================
 col1, col2, col3 = st.columns([1, 2, 1])
 
@@ -159,25 +158,27 @@ with col2:
     st.markdown("""
     <div style="text-align:center;">
         <h1>🎮 Awesomenauts Tracker</h1>
-        <p>Upload your ApplicationPersistent.log file</p>
+        <p>Upload ApplicationPersistent.log to load stats</p>
     </div>
     """, unsafe_allow_html=True)
 
 
 # =========================
-# STOP IF NO FILE
+# STOP IF NO DATA
 # =========================
-if uploaded_file is None:
-    st.info("Upload your log file to view stats.")
+if uploaded_file is None or df.empty:
+    st.info("Upload your ApplicationPersistent.log file to view full stats.")
     st.stop()
 
 
 # =========================
-# ALL TIME STATS
+# ALL TIME STATS (RESTORED)
 # =========================
 first_match_date = df["date"].min().strftime("%d %b %Y")
 
-st.markdown(f"## 📊 All-Time Stats - 📅 From {first_match_date}")
+st.markdown(f"""
+## 📊 All-Time Stats - 📅 From {first_match_date}
+""")
 
 games = len(df)
 wins = int(df["won"].sum())
@@ -188,25 +189,35 @@ hours = (df["date"].max() - df["date"].min()).total_seconds() / 3600
 
 st.markdown(f"""
 Games: {games}  
+
 Wins: {wins}  
+
 Losses: {losses}  
+
 Winrate: {winrate}%  
+
 Time Played: {hours:.2f} hrs  
+
 ⭐ Rating Earned: {int(df["rating_delta"].sum()):+}
 """)
 
 
 # =========================
-# WIN STREAK
+# WIN STREAK (RESTORED)
 # =========================
 st.markdown("## 🔥 Win Streak")
+
 best, current = win_streak(matches)
-st.write(f"Current: {current}")
-st.write(f"Best: {best}")
+
+st.markdown(f"""
+Current streak: {current}  
+
+Best streak: {best}
+""")
 
 
 # =========================
-# PERFORMANCE
+# PERFORMANCE (RESTORED)
 # =========================
 st.markdown("## 📊 Performance")
 
@@ -229,10 +240,15 @@ def render(title, data, date_label):
     st.markdown(f"""
 ### 📅 {title} {date_label}
 Games: {games}  
+
 Wins: {wins}  
+
 Losses: {losses}  
+
 Winrate: {winrate}%  
+
 Time Played: {hours:.2f} hrs  
+
 ⭐ Rating Earned: {int(data["rating_delta"].sum()):+}
 """)
 
@@ -241,12 +257,14 @@ render("Yesterday", yesterday_df, yesterday.strftime("%d %b %Y"))
 
 
 # =========================
-# MATCH HISTORY
+# MATCH HISTORY (RESTORED)
 # =========================
 st.markdown("## 📜 Match History")
 
 display_df = df.copy()
 
-display_df["Result"] = display_df["won"].apply(lambda x: "🟢 WIN" if x else "🔴 LOSS")
+display_df["Result"] = display_df["won"].apply(
+    lambda x: "🟢 WIN" if x else "🔴 LOSS"
+)
 
-st.dataframe(display_df)
+st.dataframe(display_df, use_container_width=True)
