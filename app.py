@@ -219,6 +219,12 @@ def parse_log_from_string(log_data):
             matches.append(current.copy())
 
     return matches
+if uploaded_file is not None:
+    log_data = uploaded_file.read().decode("utf-8")
+    matches = parse_log_from_string(log_data)
+else:
+    matches = []
+
 df = pd.DataFrame(matches)
 
 if not df.empty:
