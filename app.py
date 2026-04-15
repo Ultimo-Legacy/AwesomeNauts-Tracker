@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, timedelta
 import pandas as pd
+import os
 
 # =========================
 # CONFIG
@@ -11,20 +12,24 @@ st.set_page_config(page_title="Awesomenauts Tracker", layout="wide")
 
 
 # =========================
-# FILE UPLOAD (FIXED SAFE)
+# FILE UPLOAD (CLOUD FIX)
 # =========================
 uploaded_file = st.file_uploader("Upload ApplicationPersistent.log", type=["log"])
 
 
 # =========================
-# LOG PARSER
+# LOG PARSER (YOUR ORIGINAL)
 # =========================
-def parse_log_from_string(log_data):
+def parse_log():
     matches = []
     seen_scores = set()
     current = None
 
-    lines = log_data.splitlines()
+    try:
+        with open("ApplicationPersistent.log", "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except:
+        return []
 
     for line in lines:
 
@@ -78,13 +83,72 @@ def parse_log_from_string(log_data):
 
 
 # =========================
-# SAFE DATA LOAD
+# CLOUD SAFE PARSER
 # =========================
-matches = []
+def parse_log_from_string(log_data):
+    matches = []
+    seen_scores = set()
+    current = None
 
+    for line in log_data.splitlines():
+
+        if "Match start" in line:
+            current = {
+                "date": None,
+                "rating": None,
+                "mu": None,
+                "sigma": None,
+                "won": False
+            }
+
+            try:
+                date_str = line.split("\t")[0]
+                current["date"] = datetime.strptime(date_str, "%Y-%m-%d %a %H:%M:%S")
+            except:
+                current["date"] = None
+
+        if current is None:
+            continue
+
+        if "Own team won." in line:
+            current["won"] = True
+
+        if "Uploading new mean score" in line:
+            try:
+                current["mu"] = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "Uploading new stddev score" in line:
+            try:
+                current["sigma"] = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "Uploading new ranking score" in line:
+            try:
+                rating = int(line.strip().split()[-1])
+            except:
+                continue
+
+            if rating in seen_scores:
+                continue
+
+            seen_scores.add(rating)
+            current["rating"] = rating
+            matches.append(current.copy())
+
+    return matches
+
+
+# =========================
+# LOAD DATA (FIXED)
+# =========================
 if uploaded_file is not None:
     log_data = uploaded_file.getvalue().decode("utf-8", errors="ignore")
     matches = parse_log_from_string(log_data)
+else:
+    matches = parse_log()
 
 df = pd.DataFrame(matches)
 
@@ -150,35 +214,30 @@ def best_stats(df):
 
 
 # =========================
-# HEADER (RESTORED STYLE)
+# UI HEADER
 # =========================
-col1, col2, col3 = st.columns([1, 2, 1])
-
-with col2:
-    st.markdown("""
-    <div style="text-align:center;">
-        <h1>🎮 Awesomenauts Tracker</h1>
-        <p>Upload ApplicationPersistent.log to load stats</p>
-    </div>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<div style="text-align:center;">
+    <h1>🎮 Awesomenauts Tracker</h1>
+    <p>Upload your ApplicationPersistent.log</p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # =========================
 # STOP IF NO DATA
 # =========================
-if uploaded_file is None or df.empty:
-    st.info("Upload your ApplicationPersistent.log file to view full stats.")
+if df.empty:
+    st.info("Upload your log file to view stats.")
     st.stop()
 
 
 # =========================
-# ALL TIME STATS (RESTORED)
+# ALL TIME STATS
 # =========================
-first_match_date = df["date"].min().strftime("%d %b %Y")
+first_match = df["date"].min().strftime("%d %b %Y")
 
-st.markdown(f"""
-## 📊 All-Time Stats - 📅 From {first_match_date}
-""")
+st.markdown(f"## 📊 All-Time Stats - 📅 From {first_match}")
 
 games = len(df)
 wins = int(df["won"].sum())
@@ -189,35 +248,25 @@ hours = (df["date"].max() - df["date"].min()).total_seconds() / 3600
 
 st.markdown(f"""
 Games: {games}  
-
 Wins: {wins}  
-
 Losses: {losses}  
-
 Winrate: {winrate}%  
-
 Time Played: {hours:.2f} hrs  
-
 ⭐ Rating Earned: {int(df["rating_delta"].sum()):+}
 """)
 
 
 # =========================
-# WIN STREAK (RESTORED)
+# WIN STREAK
 # =========================
 st.markdown("## 🔥 Win Streak")
-
 best, current = win_streak(matches)
-
-st.markdown(f"""
-Current streak: {current}  
-
-Best streak: {best}
-""")
+st.write(f"Current: {current}")
+st.write(f"Best: {best}")
 
 
 # =========================
-# PERFORMANCE (RESTORED)
+# PERFORMANCE
 # =========================
 st.markdown("## 📊 Performance")
 
@@ -227,7 +276,6 @@ yesterday_df = df[df["date"].dt.date == yesterday]
 
 def render(title, data, date_label):
     if data.empty:
-        st.write(f"{title}: No data")
         return
 
     games = len(data)
@@ -240,15 +288,10 @@ def render(title, data, date_label):
     st.markdown(f"""
 ### 📅 {title} {date_label}
 Games: {games}  
-
 Wins: {wins}  
-
 Losses: {losses}  
-
 Winrate: {winrate}%  
-
 Time Played: {hours:.2f} hrs  
-
 ⭐ Rating Earned: {int(data["rating_delta"].sum()):+}
 """)
 
@@ -257,14 +300,12 @@ render("Yesterday", yesterday_df, yesterday.strftime("%d %b %Y"))
 
 
 # =========================
-# MATCH HISTORY (RESTORED)
+# MATCH HISTORY
 # =========================
 st.markdown("## 📜 Match History")
 
 display_df = df.copy()
 
-display_df["Result"] = display_df["won"].apply(
-    lambda x: "🟢 WIN" if x else "🔴 LOSS"
-)
+display_df["Result"] = display_df["won"].apply(lambda x: "🟢 WIN" if x else "🔴 LOSS")
 
 st.dataframe(display_df, use_container_width=True)
